@@ -2,7 +2,7 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import Receptionist from "../package/index"
+import Receptionist from '../package/index'
 
 
 const scene = new THREE.Scene()
