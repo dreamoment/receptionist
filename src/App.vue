@@ -21,38 +21,70 @@ const controls = new OrbitControls(camera, renderer.domElement)
 camera.position.set(5, 5, 5)
 
 
-const monkey = Receptionist.createAsset('./monkey.glb')
-const ball = Receptionist.createAsset('./ball.glb')
+// The models is simply encrypted
+const monkey = Receptionist.createAsset('./monkey_encrypted.glb')
+const ball = Receptionist.createAsset('./ball_encrypted.glb')
+// monkey
+//     .onLoad(data => {
+//       console.log('data:', data)
+//     })
+//     .onProgress(progress => {
+//       console.log(`progress: ${progress}`)
+//     })
+//     .onError(err => {
+//       console.log(`error: ${err}`)
+//     })
+// ball
+//     .onLoad(data => {
+//       console.log('data:', data)
+//     })
+//     .onProgress(progress => {
+//       console.log(`progress: ${progress}`)
+//     })
+//     .onError(err => {
+//       console.log(`error: ${err}`)
+//     })
 
-const interceptor = Receptionist.createInterceptor((data) => {
-  return data
+// with interception
+const interceptor = Receptionist.createInterceptor((buffer) => {
+  let view = new Uint8Array(buffer)
+  for (let i = 0; i < view.length; i++) {
+    const item = 255 - view[i]
+    view[i] = item
+  }
+  return view.buffer
 })
-// interceptor.bind(monkey).bind(ball)
+interceptor.bind(monkey).bind(ball)
 // or
-interceptor.bind([ monkey, ball ])
+// interceptor.bind([ monkey, ball ])
+
+// without interception
+// const monkey = Receptionist.createAsset('./monkey.glb')
+// const ball = Receptionist.createAsset('./ball.glb')
 
 const gltfLoader = new GLTFLoader()
 const loader = Receptionist.createLoader(gltfLoader)
-// loader.bind(monkey).bind(ball)
+loader.bind(monkey).bind(ball)
 // or
-loader.bind([ monkey, ball ])
+// loader.bind([ monkey, ball ])
 
 const receptionist = new Receptionist()
 receptionist
     .onLoad(data => {
-      console.log(11111111, data)
-      scene.add(data.scene)
+      data.forEach((item) => {
+        scene.add(item.scene)
+      })
     })
-    .onProgress(event => {
-      console.log(2222222, event)
+    .onProgress(progress => {
+      console.log(`progress: ${progress}`)
     })
     .onError(err => {
-      console.log(3333333, err)
+      console.log(`error: ${err}`)
     })
 
-// receptionist.load(monkey).load(ball)
+receptionist.load(monkey).load(ball)
 // or
-receptionist.load([ monkey, ball ])
+// receptionist.load([ monkey, ball ])
 
 const animate = () => {
   controls.update()

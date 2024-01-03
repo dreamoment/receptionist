@@ -1,22 +1,23 @@
 <h1 align="center">receptionist</h1>
 
-![](/docs/flow.png)
+![](/docs/flow.drawio.png)
 
 Language: English | [中文简体](README_zh_cn.md)
 
 ## What is receptionist ?
 
-`threejs` performance monitor provides a variety of 3D information to help developers analyze.
-
-> This plugin conflicts with the `threejs` development tool (such as: [three-devtools](https://github.com/threejs/three-devtools)), Because of competing for the right to use `window.__THREE_DEVTOOLS__`. Therefore, do not allow them to coexist in the same runtime environment.
-
+`threejs` multi-function file loader that can handle a variety of common business scenarios, such as:
+- Download multiple files and get the total download progress.
+- Download data cannot be parsed by `threejs` loader and needs to be pre-processed. Because they could be encrypted or even compressed.
 ## Features
 
 - lightweight and easy to use
 
-- monitor panel exists in new TAB, high freedom
+- multi-file download
 
-- support monitoring of custom attributes
+- data preprocessing
+
+- interface with all loaders in `threejs`
 
 - support `typescript`
 
@@ -26,14 +27,13 @@ Language: English | [中文简体](README_zh_cn.md)
 npm i @dreamoment/receptionist
 ```
 
-> In the directory corresponding to the port, deploy [receptionist.html](https://github.com/dreamoment/receptionist/releases). Open `[your domain]/receptionist.html` to access the monitor panel.
-
 ## Examples
 
 ```
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import receptionist from "@dreamoment/receptionist"
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import Receptionist from '@dreamoment/receptionist'
 
 
 const scene = new THREE.Scene()
@@ -51,27 +51,74 @@ const controls = new OrbitControls(camera, renderer.domElement)
 
 camera.position.set(5, 5, 5)
 
-const geometry = new THREE.BoxGeometry(1, 1, 1)
-const material = new THREE.MeshStandardMaterial()
-const material1 = new THREE.MeshStandardMaterial()
-const cube = new THREE.Mesh(geometry, material)
-const cube1 = new THREE.Mesh(geometry, material1)
-scene.add(cube, cube1)
 
+// The models is simply encrypted
+const monkey = Receptionist.createAsset('./monkey_encrypted.glb')
+const ball = Receptionist.createAsset('./ball_encrypted.glb')
+// monkey
+//     .onLoad(data => {
+//       console.log('data:', data)
+//     })
+//     .onProgress(progress => {
+//       console.log(`progress: ${progress}`)
+//     })
+//     .onError(err => {
+//       console.log(`error: ${err}`)
+//     })
+// ball
+//     .onLoad(data => {
+//       console.log('data:', data)
+//     })
+//     .onProgress(progress => {
+//       console.log(`progress: ${progress}`)
+//     })
+//     .onError(err => {
+//       console.log(`error: ${err}`)
+//     })
 
-const receptionist = new receptionist(renderer)
+// with interception
+const interceptor = Receptionist.createInterceptor((buffer) => {
+  let view = new Uint8Array(buffer)
+  for (let i = 0; i < view.length; i++) {
+    const item = 255 - view[i]
+    view[i] = item
+  }
+  return view.buffer
+})
+interceptor.bind(monkey).bind(ball)
+// or
+// interceptor.bind([ monkey, ball ])
 
-// extend the custom prop
-const extensionRef1 = receptionist.ref(camera.position, 'x')
-const extensionRef2 = receptionist.ref(camera.position, 'y')
-const extensionRef3 = receptionist.ref(camera.position, 'z')
-receptionist.extend('CameraPosX', extensionRef1)
-receptionist.extend('CameraPosY', extensionRef2)
-receptionist.extend('CameraPosZ', extensionRef3)
+// without interception
+// const monkey = Receptionist.createAsset('./monkey.glb')
+// const ball = Receptionist.createAsset('./ball.glb')
+
+const gltfLoader = new GLTFLoader()
+const loader = Receptionist.createLoader(gltfLoader)
+loader.bind(monkey).bind(ball)
+// or
+// loader.bind([ monkey, ball ])
+
+const receptionist = new Receptionist()
+receptionist
+    .onLoad(data => {
+      data.forEach((item) => {
+        scene.add(item.scene)
+      })
+    })
+    .onProgress(progress => {
+      console.log(`progress: ${progress}`)
+    })
+    .onError(err => {
+      console.log(`error: ${err}`)
+    })
+
+receptionist.load(monkey).load(ball)
+// or
+// receptionist.load([ monkey, ball ])
 
 const animate = () => {
   controls.update()
-  receptionist.update()
   renderer.render(scene, camera)
 }
 
@@ -89,29 +136,112 @@ renderer.setAnimationLoop(animate)
 ## API
 
 ```
-new receptionist(renderer: THREE.WebGLRenderer)
+new receptionist()
 ```
 
-### update
+### `static` createAsset
 
-Update internal status. Should always be used in the render loop.
-
-```
-update(): void
-```
-
-### ref
-
-Creates an object property reference as a parameter to the `extend` method.
+Create a new asset instance.
 
 ```
-ref(ref: any, prop: string): ExtensionRef
+Receptionist.createAsset(url: string): Asset
 ```
 
-### extend
+### `static` createLoader
 
-Extend a custom property so that it can be monitored.
+新建加载器实例
+Create a new loader instance.
 
 ```
-extend(name: string, extensionRef: ExtensionRef): receptionist
+Receptionist.createLoader(loader: THREE.Loader): Loader
+```
+
+### `static` createInterceptor
+
+Create a new interceptor instance.
+
+```
+Receptionist.createInterceptor(handler: HandlerIntercept): Interceptor
+```
+
+### onLoad
+
+Listening for the load completion messages for all assets.
+
+```
+type handlerLoad = (data: unknown) => void
+
+onLoad(onLoad: handlerLoad): this
+```
+
+### onProgress
+
+Listening for the load progress messages for assets.
+
+```
+type handlerProgress = (progress: number) => void
+
+onProgress(onProgress: handlerProgress): this
+```
+
+### onError
+
+Listening for the error messages for all assets.
+
+```
+type handlerError = (err: unknown) => void
+
+onError(onError: handlerError): this
+```
+
+## Asset API
+
+### onLoad
+
+Listening for the load completion messages for this asset.
+
+```
+type handlerLoad = (data: unknown) => void
+
+onLoad(onLoad: handlerLoad): this
+```
+
+### onProgress
+
+Listening for the load progress messages for this asset.
+
+```
+type handlerProgress = (progress: number) => void
+
+onProgress(onProgress: handlerProgress): this
+```
+
+### onError
+
+Listening for the error messages for this asset.
+
+```
+type handlerError = (err: unknown) => void
+
+onError(onError: handlerError): this
+```
+
+## Loader API
+
+### bind
+
+Bind assets. Use loaders in the loading process for these assets. Each asset should be bound with a loader.
+
+```
+bind(asset: Asset | Asset[]): this
+```
+
+## Interceptor API
+
+### bind
+
+Bind assets. Whether to use interceptors in the loading process for these assets.
+
+```
+bind(asset: Asset | Asset[]): this
 ```
